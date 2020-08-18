@@ -1,2 +1,3 @@
 主控esp32
+用micropython实现
 用led模拟辉光时钟
