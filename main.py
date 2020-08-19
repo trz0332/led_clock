@@ -10,8 +10,10 @@ from mqtt_as import config
 import uasyncio as asyncio  #导入异步模块
 import g_variable    #导入一些自定义变量，用于全局变量
 import cfg  #导入配置
-import machine         # get the current frequency of the CPU
+import machine    
+from ds3231 import DS3231    
 freq(240000000) # set the CPU frequency to 240 MHz
+rtc=RTC()
 sta_if = network.WLAN(network.STA_IF)
 ntptime.host=cfg.ntp_server
 
@@ -19,6 +21,7 @@ ntptime.host=cfg.ntp_server
 tc=led_C(cfg.led_pin)  #初始化LED灯模块
 i2_bus=I2C(1,scl=Pin(cfg.i2c_scl_pin), sda=Pin(cfg.i2c_sda_pin), freq=100000)  #初始化I2C总线
 sht=SHT20(i2_bus)  #
+ds32=DS3231(i2_bus)
 def get_sht20():  #获取温湿度
     if 64 in i2_bus.scan():
         g_variable.temp=round(sht.get_temperature(),1)
@@ -38,8 +41,11 @@ def init_upttime():  #时间同步
         ntptime.settime()
     except:
         g_variable.ntp_flag=False
-    else:
+        rtc.datetime(tuple(ds32.datetime()+[0]))
+    else:   #如果
         g_variable.ntp_flag= True
+        ds32.datetime(list(rtc.datetime())[-1])
+
     #print(time.localtime(time.time()+28800))
 
 
@@ -87,6 +93,7 @@ def connect_wifi():  #连接wifi
     else:sta_if.config(dhcp_hostname=cfg.sysname)
     return sta_if.isconnected() 
 connect_wifi()  #第一次连接wifi
+init_upttime()
 b1=Pin(cfg.b1_pin, Pin.IN, Pin.PULL_DOWN)
 b1.irq(lambda p:tuch_mune(), trigger=(Pin.IRQ_RISING))  #按钮1上升沿中断
 b2=Pin(cfg.b2_pin, Pin.IN, Pin.PULL_DOWN)
@@ -165,9 +172,10 @@ async def conn_han(client):
 async def main(client):  #mqtt主循环
     await client.connect()
     while True:
-        await asyncio.sleep(10)
+        await asyncio.sleep(60)
         if not g_variable.ntp_flag:
             init_upttime()   #第一次同步时钟
+            if g_variable.ntp_flag:ds32.datetime(list(rtc.datetime())[-1])
 
 topic_rbg_stat=cfg.topic_rbg_stat
 topic_rbg_command=cfg.topic_rbg_command
