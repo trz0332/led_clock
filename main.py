@@ -45,37 +45,37 @@ def init_upttime():  #时间同步
 
 
 def show_l_t():  #led显示函数
-    if g_variable.mune==0:   #显示时间
-        localtime = time.localtime(time.time()+28800)
-        localtime=localtime[3:6]
-        tt=localtime[0]*10000+localtime[1]*100+localtime[2]
-        tc.color_list=g_variable.tcl
-        tc.show_num(tt)
-    elif g_variable.mune==1:   #从111111到999999循环显示
-        if g_variable.wuyiyi<999999:
-            g_variable.wuyiyi+=111111
-        else:g_variable.wuyiyi=0
-        tc.color_list=g_variable.tcl
-        tc.show_num(g_variable.wuyiyi)
-    elif g_variable.mune==2:   #显示日期
-        localtime = time.localtime(time.time()+28800)
-        localtime=localtime[0:3]
-        azf=tc.fjie_num(localtime[0])
-        tt=azf[-2]*100000+azf[-1]*10000+localtime[1]*100+localtime[2]
-        tc.show_num(tt)
-    elif g_variable.mune==3:   #全部点亮，由于60个灯全部点亮会造成电流过大实际，所以控制亮度位10
-        for i in range(60):
-            tc.np[i]=(10,10,10)
-        tc.np.write()
-    elif g_variable.mune==4:  #显示温度
-        tt=tc.fjie_num(g_variable.temp*10)
-        #print(tt)
-        tc.show_list(tt)
-    elif g_variable.mune==5:  #显示湿度
-        tt=tc.fjie_num(g_variable.hum*10)
-        tc.show_list(tt)
-    if (time.time()-g_variable.jl_time)>60:g_variable.mune=0
-    update()  #mqtt更新灯状态
+    if  g_variable.td_status == 'ON':
+        if g_variable.mune==0:   #显示时间
+            localtime = time.localtime(time.time()+28800)
+            localtime=localtime[3:6]
+            tt=localtime[0]*10000+localtime[1]*100+localtime[2]
+            tc.color_list=g_variable.tcl
+            tc.show_num(tt)
+        elif g_variable.mune==1:   #从111111到999999循环显示
+            if g_variable.wuyiyi<999999:
+                g_variable.wuyiyi+=111111
+            else:g_variable.wuyiyi=0
+            tc.show_num(g_variable.wuyiyi)
+        elif g_variable.mune==2:   #显示日期
+            localtime = time.localtime(time.time()+28800)
+            localtime=localtime[0:3]
+            azf=tc.fjie_num(localtime[0])
+            tt=azf[-2]*100000+azf[-1]*10000+localtime[1]*100+localtime[2]
+            tc.show_num(tt)
+        elif g_variable.mune==3:   #全部点亮，由于60个灯全部点亮会造成电流过大实际，所以控制亮度位10
+            for i in range(60):
+                tc.np[i]=(10,10,10)
+            tc.np.write()
+        elif g_variable.mune==4:  #显示温度
+            tt=tc.fjie_num(g_variable.temp*10)
+            #print(tt)
+            tc.show_list(tt)
+        elif g_variable.mune==5:  #显示湿度
+            tt=tc.fjie_num(g_variable.hum*10)
+            tc.show_list(tt)
+    if g_variable.mune !=0 and (time.time()-g_variable.jl_time)>60  :g_variable.mune=0
+    #update()  #mqtt更新灯状态
     
 
 def connect_wifi():  #连接wifi
@@ -121,8 +121,8 @@ def sub_cb(topic, msg, retained):  #订阅消息关联的函数
                 g_variable.td_status='ON'
             else:
                 g_variable.td_status='OFF'
-                for i in range(6):
-                    g_variable.tcl[i]=(0,0,0)
+                tc.np.fill((0,0,0))
+                tc.np.write()
         elif ('list' in ledmsg.keys()) and ('state' in ledmsg.keys()) :
             if ledmsg['state']=='ON':
                 for i in range(6):
@@ -130,16 +130,16 @@ def sub_cb(topic, msg, retained):  #订阅消息关联的函数
                 g_variable.td_status='ON'
             else:
                 g_variable.td_status='OFF'
-                for i in range(6):
-                    g_variable.tcl[i]=(0,0,0)
+                tc.np.fill((0,0,0))
+                tc.np.write()
         elif ('state' in ledmsg.keys()) :
             if ledmsg['state']=='ON':
-                for i in range(6):
-                    g_variable.tcl[i]=(255,255,255)
+                g_variable.tcl=g_variable.tcl
             elif ledmsg['state']=='OFF':
-                for i in range(6):
-                    g_variable.tcl[i]=(0,0,0)
+                tc.np.fill((0,0,0))
+                tc.np.write()
             g_variable.td_status=ledmsg['state']
+        tc.color_list=g_variable.tcl
         update()
 
 def updatehj():  #推送温湿度数据

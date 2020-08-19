@@ -5,7 +5,7 @@ hum=0.0  #获取到的湿度
 temp_old=0.0  #获取到的温度
 hum_old=0.0  #获取到的湿度
 QOS=1   #mqtt  qos
-td_status=0   #灯开关状态
+td_status='ON'   #灯开关状态
 tcl=[(204,0,255)]*6  #初始灯的颜色
 wuyiyi=0  #灯初始数字
 
