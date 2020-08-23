@@ -3,7 +3,8 @@ from machine import RTC,Timer,Pin,I2C,freq
 import time,network,json
 from work import led_C  #导入6位LED灯模块
 from sht20 import SHT20  #导入sht20模块
-import utime  ,gc
+import utime  ,gc,random
+
 import _thread  #导入多线程模块
 from mqtt_as import MQTTClient  #导入mqtt模块
 from mqtt_as import config
@@ -19,6 +20,7 @@ ntptime.host=cfg.ntp_server
 
 
 tc=led_C(cfg.led_pin)  #初始化LED灯模块
+tc.color_list=g_variable.tcl #初始化LED灯颜色
 i2_bus=I2C(1,scl=Pin(cfg.i2c_scl_pin), sda=Pin(cfg.i2c_sda_pin), freq=100000)  #初始化I2C总线
 sht=SHT20(i2_bus)  #
 ds32=DS3231(i2_bus)
@@ -56,13 +58,10 @@ def show_l_t():  #led显示函数
             localtime = time.localtime(time.time()+28800)
             localtime=localtime[3:6]
             tt=localtime[0]*10000+localtime[1]*100+localtime[2]
-            tc.color_list=g_variable.tcl
+            #tc.color_list=g_variable.tcl
             tc.show_num(tt)
-        elif g_variable.mune==1:   #从111111到999999循环显示
-            if g_variable.wuyiyi<999999:
-                g_variable.wuyiyi+=111111
-            else:g_variable.wuyiyi=0
-            tc.show_num(g_variable.wuyiyi)
+        elif g_variable.mune==1:  #显示随机数
+            tc.show_num(random.randrange(0,999999))
         elif g_variable.mune==2:   #显示日期
             localtime = time.localtime(time.time()+28800)
             localtime=localtime[0:3]
@@ -70,8 +69,7 @@ def show_l_t():  #led显示函数
             tt=azf[-2]*100000+azf[-1]*10000+localtime[1]*100+localtime[2]
             tc.show_num(tt)
         elif g_variable.mune==3:   #全部点亮，由于60个灯全部点亮会造成电流过大实际，所以控制亮度位10
-            for i in range(60):
-                tc.np[i]=(10,10,10)
+            tc.np.fill((10,10,10))
             tc.np.write()
         elif g_variable.mune==4:  #显示温度
             tt=tc.fjie_num(g_variable.temp*10)
@@ -80,6 +78,22 @@ def show_l_t():  #led显示函数
         elif g_variable.mune==5:  #显示湿度
             tt=tc.fjie_num(g_variable.hum*10)
             tc.show_list(tt)
+        elif g_variable.mune==6:   #从111111到999999循环显示
+            if g_variable.wuyiyi<999999:
+                g_variable.wuyiyi+=111111
+            else:g_variable.wuyiyi=0
+            """
+            ##想设置颜色渐变，还没有办法实现
+            if g_variable.r>255:
+                g_variable.r=0
+                g_variable.b=
+            """
+            tc.show_num(g_variable.wuyiyi)
+        elif g_variable.mune==9999:  #显示mqtt传来的60位led颜色数据
+            tc.np.write()
+        elif g_variable.mune==8888:  #显示mqtt传来的6位整型数据
+            tc.show_num(g_variable.show_num)
+            tc.np.write()
     if g_variable.mune !=0 and (time.time()-g_variable.jl_time)>60  :g_variable.mune=0
     #update()  #mqtt更新灯状态
     
@@ -105,7 +119,7 @@ def tuch_mune():  #按钮1触发的时候
         g_variable.tcl=[(204,0,255)]*6
 
 
-    if  g_variable.mune<5:
+    if  g_variable.mune<6:
         g_variable.mune+=1
     else :
         g_variable.mune=0
@@ -113,6 +127,14 @@ def tuch_mune():  #按钮1触发的时候
 def pub_msg(topic, msg):  #推送mqtt消息
     if  client._has_connected:
         loop.create_task(client.publish(topic, msg, qos = g_variable.QOS))
+def is_listcolor(list1):
+    if type(list1)==list and len(list1)==6:
+        for i in list1:
+            for x in i :
+                if x >255 or x <0 :
+                    return False
+        return True
+    else :return False
 
 def sub_cb(topic, msg, retained):  #订阅消息关联的函数
     try:
@@ -130,15 +152,48 @@ def sub_cb(topic, msg, retained):  #订阅消息关联的函数
                 g_variable.td_status='OFF'
                 tc.np.fill((0,0,0))
                 tc.np.write()
+            tc.color_list=g_variable.tcl
         elif ('list' in ledmsg.keys()) and ('state' in ledmsg.keys()) :
-            if ledmsg['state']=='ON':
-                for i in range(6):
-                    g_variable.tcl[i]=(ledmsg['color']['r'],ledmsg['color']['g'],ledmsg['color']['b'])
-                g_variable.td_status='ON'
+            if ledmsg['state']=='ON' :
+                if  is_listcolor(ledmsg['list']):
+                    g_variable.tcl=ledmsg['list']
+                    g_variable.td_status='ON'
             else:
                 g_variable.td_status='OFF'
                 tc.np.fill((0,0,0))
                 tc.np.write()
+            tc.color_list=g_variable.tcl
+        elif ('c_data' in ledmsg.keys()) and ('state' in ledmsg.keys()) :
+            if ledmsg['state']=='ON' :
+                try:
+                    g_variable.jl_time=time.time()
+                    for index,item in enumerate(ledmsg['data']):
+                        tc.np[index]=item
+                except Exception as e:
+                    print(e)
+                else:
+                    g_variable.mune=9999
+            else:
+                g_variable.td_status='OFF'
+                tc.np.fill((0,0,0))
+                tc.np.write()
+
+        elif ('d_data' in ledmsg.keys()) and ('state' in ledmsg.keys()) :
+            if ledmsg['state']=='ON' :
+                try:
+                    g_variable.jl_time=time.time()
+                    g_variable.show_num=ledmsg['d_data']
+                except Exception as e:
+                    print(e)
+                else:
+                    g_variable.mune=8888
+            else:
+                g_variable.td_status='OFF'
+                tc.np.fill((0,0,0))
+                tc.np.write()
+
+
+
         elif ('state' in ledmsg.keys()) :
             if ledmsg['state']=='ON':
                 g_variable.tcl=g_variable.tcl
@@ -146,7 +201,9 @@ def sub_cb(topic, msg, retained):  #订阅消息关联的函数
                 tc.np.fill((0,0,0))
                 tc.np.write()
             g_variable.td_status=ledmsg['state']
-        tc.color_list=g_variable.tcl
+            tc.color_list=g_variable.tcl
+
+        
         update()
 
 def updatehj():  #推送温湿度数据
@@ -157,13 +214,13 @@ def update():   #推送led灯状态数据
     pub_msg(topic_rbg_stat,msg)
 
 
-time_show_lcd=Timer(0)   #定时器刷新led灯  不要设置的太快了，micropython的运算速度太慢，
+time_show_lcd=Timer(3)   #定时器刷新led灯  不要设置的太快了，micropython的运算速度太慢，
 time_show_lcd.init(period=100, mode=Timer.PERIODIC, callback=lambda t:show_l_t())
 time_init_datetime=Timer(1)   #定时器同步时间
 time_init_datetime.init(period=3600000, mode=Timer.PERIODIC, callback=lambda t:init_upttime())
 time_get_sht20=Timer(2)  #定时器获取温度
 time_get_sht20.init(period=30000, mode=Timer.PERIODIC, callback=lambda t:get_sht20())
-time_updathj=Timer(3)   #定时器推送温湿度数据
+time_updathj=Timer(0)   #定时器推送温湿度数据
 time_updathj.init(period=180000, mode=Timer.PERIODIC, callback=lambda t:updatehj())
 async def conn_han(client):
     await client.subscribe(topic_rbg_command, g_variable.QOS)

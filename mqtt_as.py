@@ -267,7 +267,7 @@ class MQTT_base:
 
     # Check internet connectivity by sending DNS lookup to Google's 8.8.8.8
     async def wan_ok(self,
-                     packet=b'$\x1a\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x03www\x06qq\x03com\x00\x00\x01\x00\x01'):
+                     packet=b'$\x1a\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x03www\x06google\x03com\x00\x00\x01\x00\x01'):
         if not self.isconnected():  # WiFi is down
             return False
         length = 32  # DNS query and response packet size
@@ -572,7 +572,7 @@ class MQTTClient(MQTT_base):
         while self.isconnected():  # Ensure just one instance.
             await asyncio.sleep(1)  # Quick response to outage.
             count += 1
-            count %= 60
+            count %= 20
             if not count:
                 gc.collect()
                 print('RAM free {} alloc {}'.format(gc.mem_free(), gc.mem_alloc()))
@@ -602,7 +602,7 @@ class MQTTClient(MQTT_base):
         while self._has_connected:
             if self.isconnected():  # Pause for 1 second
                 await asyncio.sleep(1)
-                #gc.collect()
+                gc.collect()
             else:
                 self._sta_if.disconnect()
                 await asyncio.sleep(1)
