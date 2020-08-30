@@ -12,4 +12,9 @@ mosquitto_pub -u pi -P passwd -t ''home/rgb1/set'' -m '{"color": {"r": 255, "g":
 这个命令是设置显示6位数字的命令  
 mosquitto_pub -u pi -P passwd -t ''home/rgb1/set'' -m '{"d_date": 123456,"state":"ON"}'  
 这个是设置6位数字颜色的命令，数字颜色可以不同  
-mosquitto_pub -u pi -P passwd -t ''home/rgb1/set'' -m '{"list": [[255,0,0],[0,255,0],[0,0,255],[255,255,0],[255,0,255],[0,255,255],],"state":"ON"}'  
+mosquitto_pub -u pi -P passwd -t ''home/rgb1/set'' -m '{"list": [[255,0,0],[0,255,0],[0,0,255],[255,255,0],[255,0,255],[0,255,255],],"state":"ON"}'    
+增加农历显示，    
+使用3个按键，可以用按键设置颜色。颜色配置列表在g_variable.py中设置tcl_1里面预填了几种颜色，这里面的颜色是设置所有灯的颜色  
+tcl_2里面的颜色是单个灯的颜色的预约设置  
+  
+添加了时间线设置。进入时间线设置会随机显示数字，当按下up或者down键的时候，可以随机显示时间线，预约时间线设置是在g_variable.py里面的time_line  
