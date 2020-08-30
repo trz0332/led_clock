@@ -3,8 +3,8 @@ from machine import RTC,Timer,Pin,I2C,freq
 import time,network,json
 from work import led_C  #导入6位LED灯模块
 from sht20 import SHT20  #导入sht20模块
-import utime  ,gc,random
-
+import utime  ,gc
+from random import randrange,choice
 import _thread  #导入多线程模块
 from mqtt_as import MQTTClient  #导入mqtt模块
 from mqtt_as import config
@@ -12,8 +12,9 @@ import uasyncio as asyncio  #导入异步模块
 import g_variable    #导入一些自定义变量，用于全局变量
 import cfg  #导入配置
 import machine    
-from ds3231 import DS3231    
-freq(240000000) # set the CPU frequency to 240 MHz
+from ds3231 import DS3231   
+from nl import nl 
+freq(160000000) # set the CPU frequency to 240 MHz
 rtc=RTC()
 sta_if = network.WLAN(network.STA_IF)
 ntptime.host=cfg.ntp_server
@@ -61,27 +62,36 @@ def show_l_t():  #led显示函数
             #tc.color_list=g_variable.tcl
             tc.show_num(tt)
         elif g_variable.mune==1:  #显示随机数
-            tc.show_num(random.randrange(0,999999))
+            if g_variable.up==0:
+                tc.show_num(randrange(0,999999))
+
+
         elif g_variable.mune==2:   #显示日期
             localtime = time.localtime(time.time()+28800)
             localtime=localtime[0:3]
             azf=tc.fjie_num(localtime[0])
             tt=azf[-2]*100000+azf[-1]*10000+localtime[1]*100+localtime[2]
             tc.show_num(tt)
-        elif g_variable.mune==3:   #全部点亮，由于60个灯全部点亮会造成电流过大实际，所以控制亮度位10
+        elif g_variable.mune==3:   #显示日期
+            tt=nl(time.localtime(time.time()+28800))
+            tc.show_num(int(tt))
+
+        elif g_variable.mune==4:   #全部点亮，由于60个灯全部点亮会造成电流过大实际，所以控制亮度位10
             tc.np.fill((10,10,10))
             tc.np.write()
-        elif g_variable.mune==4:  #显示温度
+        elif g_variable.mune==5:  #显示温度
             tt=tc.fjie_num(g_variable.temp*10)
             #print(tt)
             tc.show_list(tt)
-        elif g_variable.mune==5:  #显示湿度
+        elif g_variable.mune==6:  #显示湿度
             tt=tc.fjie_num(g_variable.hum*10)
             tc.show_list(tt)
-        elif g_variable.mune==6:   #从111111到999999循环显示
+        elif g_variable.mune==7:   #从111111到999999循环显示
             if g_variable.wuyiyi<999999:
                 g_variable.wuyiyi+=111111
             else:g_variable.wuyiyi=0
+            if g_variable._index !=0:
+                g_variable.wuyiyi=zh(g_variable.wuyiyi,g_variable._index-1)
             """
             ##想设置颜色渐变，还没有办法实现
             if g_variable.r>255:
@@ -111,18 +121,81 @@ init_upttime()
 b1=Pin(cfg.b1_pin, Pin.IN, Pin.PULL_DOWN)
 b1.irq(lambda p:tuch_mune(), trigger=(Pin.IRQ_RISING))  #按钮1上升沿中断
 b2=Pin(cfg.b2_pin, Pin.IN, Pin.PULL_DOWN)
+b2.irq(lambda p:tuch_up(), trigger=(Pin.IRQ_RISING))  #按钮1上升沿中断
 b3=Pin(cfg.b3_pin, Pin.IN, Pin.PULL_DOWN)
+b3.irq(lambda p:tuch_down(), trigger=(Pin.IRQ_RISING))  #按钮1上升沿中断
+
+def ffdd_up(m_list):
+    if len(m_list)-1>g_variable._index>=0:g_variable._index+=1
+    else:g_variable._index=0
+    print(m_list[g_variable._index])
+    return m_list[g_variable._index]
+
+def ffdd_down(m_list):
+
+    if len(m_list)-1>=g_variable._index>0:g_variable._index-=1
+    else:g_variable._index=len(m_list)-1
+    return m_list[g_variable._index]
+
+def zh(a,b):  #这个函数主要是用于10静止的与0
+    c=tc.fjie_num(a)
+    c[b]=0
+    d=0
+    for index,item in enumerate(c):
+        d+=item*(pow(10,5-index))
+    return d
+
 def tuch_mune():  #按钮1触发的时候
     g_variable.jl_time=time.time()
+    g_variable._index=0
+    g_variable.up=0
     if g_variable.td_status=='OFF':
         g_variable.td_status='ON'
         g_variable.tcl=[(204,0,255)]*6
 
-
-    if  g_variable.mune<6:
+    if  g_variable.mune<7:
         g_variable.mune+=1
     else :
         g_variable.mune=0
+def tuch_up():
+    g_variable.jl_time=time.time()
+    if g_variable.mune==1   :
+        g_variable.up=ffdd_up(g_variable.time_line_mune)
+        if g_variable.up ==1:
+            tc.show_num(choice(g_variable.time_line))
+    elif g_variable.mune==7   :
+        g_variable._index1=0
+        if  g_variable._index<6:
+            g_variable._index+=1
+        else :
+            g_variable._index=0
+    
+
+
+def tuch_down():
+    g_variable.jl_time=time.time()
+    if g_variable.mune==1   :
+        g_variable.up=ffdd_down(g_variable.time_line_mune)
+        if g_variable.up ==1:
+            tc.show_num(choice(g_variable.time_line))
+    elif g_variable.mune==7   :
+        #max_len=len(g_variable.tcl_1)
+        if g_variable._index1<g_variable.mune6_max_index1-1:
+            g_variable._index1+=1
+        else:g_variable._index1=0
+
+        if g_variable._index==0:
+            for index,item in enumerate(g_variable.tcl_1[g_variable._index1]):
+                tc.color_list[index]= item
+            #print(g_variable.tcl_2)
+            g_variable.mune6_max_index1=len(g_variable.tcl_1)
+        else:
+            g_variable.mune6_max_index1=len(g_variable.tcl_2)
+            tc.color_list[g_variable._index-1]=g_variable.tcl_2[g_variable._index1]
+        #print(g_variable._index,g_variable._index1)
+
+
+
     #print(mune)
 def pub_msg(topic, msg):  #推送mqtt消息
     if  client._has_connected:
