@@ -1,7 +1,7 @@
 import ntptime  #导入时间同步模块
 from machine import RTC,Timer,Pin,I2C,freq
 import time,network,json
-from work import led_C  #导入6位LED灯模块
+from work_spi import led_C  #导入6位LED灯模块
 from sht20 import SHT20  #导入sht20模块
 import utime  ,gc
 from random import randrange,choice
@@ -77,8 +77,7 @@ def show_l_t():  #led显示函数
             tc.show_num(int(tt))
 
         elif g_variable.mune==4:   #全部点亮，由于60个灯全部点亮会造成电流过大实际，所以控制亮度位10
-            tc.np.fill((10,10,10))
-            tc.np.write()
+            tc.np.show([(10,10,10)]*60)
         elif g_variable.mune==5:  #显示温度
             tt=tc.fjie_num(g_variable.temp*10)
             #print(tt)
@@ -103,7 +102,6 @@ def show_l_t():  #led显示函数
             tc.np.write()
         elif g_variable.mune==8888:  #显示mqtt传来的6位整型数据
             tc.show_num(g_variable.show_num)
-            tc.np.write()
     if g_variable.mune !=0 and (time.time()-g_variable.jl_time)>60  :g_variable.mune=0
     #update()  #mqtt更新灯状态
     
@@ -128,7 +126,7 @@ b3.irq(lambda p:tuch_down(), trigger=(Pin.IRQ_RISING))  #按钮1上升沿中断
 def ffdd_up(m_list):
     if len(m_list)-1>g_variable._index>=0:g_variable._index+=1
     else:g_variable._index=0
-    print(m_list[g_variable._index])
+    #print(m_list[g_variable._index])
     return m_list[g_variable._index]
 
 def ffdd_down(m_list):
@@ -137,7 +135,7 @@ def ffdd_down(m_list):
     else:g_variable._index=len(m_list)-1
     return m_list[g_variable._index]
 
-def zh(a,b):  #这个函数主要是用于10静止的与0
+def zh(a,b):  #这个函数主要是用于10进制的与0
     c=tc.fjie_num(a)
     c[b]=0
     d=0
@@ -163,6 +161,11 @@ def tuch_up():
         g_variable.up=ffdd_up(g_variable.time_line_mune)
         if g_variable.up ==1:
             tc.show_num(choice(g_variable.time_line))
+    elif g_variable.mune==0   :
+        if g_variable.td_status=='ON':
+            g_variable.td_status='OFF'
+            tc.np.show([])
+        update()
     elif g_variable.mune==7   :
         g_variable._index1=0
         if  g_variable._index<6:
@@ -178,6 +181,11 @@ def tuch_down():
         g_variable.up=ffdd_down(g_variable.time_line_mune)
         if g_variable.up ==1:
             tc.show_num(choice(g_variable.time_line))
+    elif g_variable.mune==0   :
+        if g_variable.td_status=='OFF':
+            g_variable.td_status='ON'
+        update()
+
     elif g_variable.mune==7   :
         #max_len=len(g_variable.tcl_1)
         if g_variable._index1<g_variable.mune6_max_index1-1:
@@ -212,58 +220,55 @@ def is_listcolor(list1):
 def sub_cb(topic, msg, retained):  #订阅消息关联的函数
     try:
         ledmsg=json.loads(msg)
+        #print(ledmsg)
     except:
         print('json load err')
         pass
     else:
-        if ('color' in ledmsg.keys()) and ('state' in ledmsg.keys()) :
+        if ('color' in ledmsg.keys()) and ('state' in ledmsg.keys()) :   #传递单个颜色
             if ledmsg['state']=='ON':
                 for i in range(6):
                     g_variable.tcl[i]=(ledmsg['color']['r'],ledmsg['color']['g'],ledmsg['color']['b'])
                 g_variable.td_status='ON'
             else:
                 g_variable.td_status='OFF'
-                tc.np.fill((0,0,0))
-                tc.np.write()
+                tc.np.show([])
             tc.color_list=g_variable.tcl
-        elif ('list' in ledmsg.keys()) and ('state' in ledmsg.keys()) :
+        elif ('list' in ledmsg.keys()) and ('state' in ledmsg.keys()) :  #传递6个颜色
             if ledmsg['state']=='ON' :
                 if  is_listcolor(ledmsg['list']):
                     g_variable.tcl=ledmsg['list']
                     g_variable.td_status='ON'
             else:
                 g_variable.td_status='OFF'
-                tc.np.fill((0,0,0))
-                tc.np.write()
+                tc.np.show([])
             tc.color_list=g_variable.tcl
-        elif ('c_data' in ledmsg.keys()) and ('state' in ledmsg.keys()) :
+        elif ('c_data' in ledmsg.keys()) and ('state' in ledmsg.keys()) :   #传递60位颜色
             if ledmsg['state']=='ON' :
                 try:
                     g_variable.jl_time=time.time()
-                    for index,item in enumerate(ledmsg['data']):
-                        tc.np[index]=item
+                    tc.np.data=ledmsg['data']
                 except Exception as e:
                     print(e)
                 else:
                     g_variable.mune=9999
             else:
                 g_variable.td_status='OFF'
-                tc.np.fill((0,0,0))
-                tc.np.write()
+                tc.np.show([])
 
-        elif ('d_data' in ledmsg.keys()) and ('state' in ledmsg.keys()) :
+        elif ('d_data' in ledmsg.keys()) and ('state' in ledmsg.keys()) :  #传递6位数字
             if ledmsg['state']=='ON' :
                 try:
                     g_variable.jl_time=time.time()
-                    g_variable.show_num=ledmsg['d_data']
+                    g_variable.show_num=int(ledmsg['d_data'])
+                    #print(g_variable.show_num)
                 except Exception as e:
                     print(e)
                 else:
                     g_variable.mune=8888
             else:
                 g_variable.td_status='OFF'
-                tc.np.fill((0,0,0))
-                tc.np.write()
+                tc.np.show([])
 
 
 
@@ -271,8 +276,7 @@ def sub_cb(topic, msg, retained):  #订阅消息关联的函数
             if ledmsg['state']=='ON':
                 g_variable.tcl=g_variable.tcl
             elif ledmsg['state']=='OFF':
-                tc.np.fill((0,0,0))
-                tc.np.write()
+                tc.np.show([])
             g_variable.td_status=ledmsg['state']
             tc.color_list=g_variable.tcl
 
@@ -283,12 +287,14 @@ def updatehj():  #推送温湿度数据
     pub_msg(cfg.topic_hjdata,json.dumps({'temp':str(g_variable.temp),'hum':str(g_variable.hum)})  )
     
 def update():   #推送led灯状态数据
-    msg = json.dumps({'state':g_variable.td_status,'color':{'r':tc.np[0][0],'g':tc.np[0][1],'b':tc.np[0][2]}})
+    if len(tc.np.data)==0:msg = json.dumps({'state':g_variable.td_status,'color':{'r':0,'g':0,'b':0}})
+    else:
+        msg = json.dumps({'state':g_variable.td_status,'color':{'r':tc.np.data[0][0],'g':tc.np.data[0][1],'b':tc.np.data[0][2]}})
     pub_msg(topic_rbg_stat,msg)
 
 
 time_show_lcd=Timer(3)   #定时器刷新led灯  不要设置的太快了，micropython的运算速度太慢，
-time_show_lcd.init(period=100, mode=Timer.PERIODIC, callback=lambda t:show_l_t())
+time_show_lcd.init(period=50, mode=Timer.PERIODIC, callback=lambda t:show_l_t())
 time_init_datetime=Timer(1)   #定时器同步时间
 time_init_datetime.init(period=3600000, mode=Timer.PERIODIC, callback=lambda t:init_upttime())
 time_get_sht20=Timer(2)  #定时器获取温度
